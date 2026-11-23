@@ -1,0 +1,27 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Native file dialogs and file read/write for saving songs (.json) and exporting MIDI (.mid).",
+  "windows": ["main"],
+  "platforms": ["windows", "linux", "macOS", "android", "iOS"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "fs:default",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "fs:allow-read-file",
+    "fs:allow-write-file",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "$HOME/**" },
+        { "path": "$DOCUMENT/**" },
+        { "path": "$DOWNLOAD/**" },
+        { "path": "$DESKTOP/**" },
+        { "path": "$AUDIO/**" },
+        { "path": "$APPDATA/**" }
+      ]
+    }
+  ]
+}

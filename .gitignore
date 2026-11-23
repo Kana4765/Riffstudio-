@@ -1,0 +1,11 @@
+node_modules
+dist
+*.local
+.vite
+src-tauri/target
+src-tauri/gen/schemas
+.DS_Store
+
+# Downloaded at install time by scripts/fetch-drum-kits.mjs
+src/assets/drumkits/*.js
+src/assets/drumkits/*.tmp
