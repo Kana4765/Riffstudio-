@@ -75,10 +75,12 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - uses: android-actions/setup-android@v3
-
-      - name: Use the preinstalled Android NDK
-        run: echo "NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+      # GitHub's Ubuntu runners ship the Android SDK, build-tools and NDK (ANDROID_HOME is already set).
+      - name: Use the preinstalled Android SDK + NDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+          ls "$ANDROID_HOME/build-tools" | tail -3
 
       - uses: dtolnay/rust-toolchain@stable
         with:
