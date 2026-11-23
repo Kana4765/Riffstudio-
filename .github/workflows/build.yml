@@ -133,16 +133,35 @@ jobs:
           path: RiffForge-Studio.apk
           if-no-files-found: error
 
+  # Every push to main (and every v* tag) publishes a GitHub Release with the .exe, .msi and .apk attached,
+  # so the newest build is always at https://github.com/<owner>/<repo>/releases/latest
   release:
     name: GitHub Release
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     needs: [windows, android]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: dist
+      - name: List release files
+        run: find dist -type f -exec ls -la {} \;
       - uses: softprops/action-gh-release@v2
         with:
-          files: dist/**/*
-          generate_release_notes: true
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('build-{0}', github.run_number) }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && format('RiffForge Studio {0}', github.ref_name) || format('RiffForge Studio build {0}', github.run_number) }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          files: |
+            dist/RiffForge-Windows/**/*.exe
+            dist/RiffForge-Windows/**/*.msi
+            dist/RiffForge-Android/*.apk
+          fail_on_unmatched_files: true
+          body: |
+            **Windows:** download the `_x64-setup.exe` installer (or the `.msi`) and run it.
+            Windows may show a SmartScreen warning because the app isn't code-signed: choose *More info → Run anyway*.
+
+            **Android:** download `RiffForge-Studio.apk` on your phone, open it and allow *Install unknown apps* for your browser/files app when asked.
+            This build is signed with a one-off key, so uninstall the previous RiffForge before installing a newer build.
+
+            Built from ${{ github.sha }}.
