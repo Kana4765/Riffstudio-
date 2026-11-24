@@ -21,13 +21,17 @@ const check = (ok: boolean, msg: string) => {
   if (!ok) failures += 1;
 };
 
+/** Guitar Pro has 8 loudness levels (ppp..fff); compare velocities at that resolution. */
+const LEVELS = [24, 38, 52, 66, 82, 98, 112, 124];
+const dynLevel = (v: number) => LEVELS.reduce((best, l, i) => (Math.abs(l - v) < Math.abs(LEVELS[best] - v) ? i : best), 0);
+
 function timeline(song: Song): string[] {
   const out: string[] = [];
   song.bars.forEach((bar, i) => out.push(`bar${i} ${bar.numerator}/${bar.denominator} @${getBarTempo(song, i)}`));
   song.tracks.forEach((t, ti) => {
     if (isDrumTrack(t)) {
       for (const h of [...t.hits].sort((a, b) => a.barIndex - b.barIndex || a.tickOffset - b.tickOffset || a.midiNote - b.midiNote)) {
-        out.push(`t${ti} drum b${h.barIndex} +${h.tickOffset} n${h.midiNote} v${Math.round(h.velocity / 20)}`);
+        out.push(`t${ti} drum b${h.barIndex} +${h.tickOffset} n${h.midiNote} dyn${dynLevel(h.velocity)}`);
       }
       return;
     }

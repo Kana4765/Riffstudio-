@@ -527,6 +527,36 @@ function exportPitchedTrack(score: alphaTab.model.Score, song: Song, track: Pitc
   });
 }
 
+const MAX_DRUM_VOICES = 4;
+
+/** Writes one voice of a drum bar: beats at the given hit ticks, rests everywhere else. */
+function writeDrumVoice(
+  voice: alphaTab.model.Voice,
+  hitsByTick: Map<number, DrumHit[]>,
+  length: number,
+  articulation: Map<number, number>,
+  dynamics: number,
+): void {
+  const ticks = [...hitsByTick.keys()].sort((a, b) => a - b);
+  addRests(voice, ticks.length ? ticks[0] : length);
+  ticks.forEach((tick, i) => {
+    const end = ticks[i + 1] ?? length;
+    const pieces = decomposeRest(end - tick);
+    // The hits go on the first piece starting at `tick`; any remainder is written as rests.
+    const [first, ...rest] = pieces.length ? pieces : [{ duration: 32 as const, dotted: false, triplet: false, ticks: 60 }];
+    const beat = newBeat(voice, first);
+    // Guitar Pro stores loudness per beat, so each voice carries a single dynamic level.
+    beat.dynamics = dynamics as alphaTab.model.DynamicValue;
+    for (const hit of hitsByTick.get(tick) ?? []) {
+      const note = new alphaTab.model.Note();
+      note.percussionArticulation = articulation.get(hit.midiNote) ?? 0;
+      note.dynamics = dynamics as alphaTab.model.DynamicValue;
+      beat.addNote(note);
+    }
+    for (const r of rest) newBeat(voice, r);
+  });
+}
+
 function exportDrumTrack(score: alphaTab.model.Score, song: Song, track: DrumTrack): void {
   const t = new alphaTab.model.Track();
   t.name = track.name;
@@ -549,31 +579,24 @@ function exportDrumTrack(score: alphaTab.model.Score, song: Song, track: DrumTra
   song.bars.forEach((bar) => {
     const b = new alphaTab.model.Bar();
     staff.addBar(b);
-    const voice = new alphaTab.model.Voice();
-    b.addVoice(voice);
     const length = barTicks(bar);
-    const byTick = new Map<number, DrumHit[]>();
-    for (const h of track.hits) {
-      if (h.barIndex !== bar.index || h.tickOffset >= length) continue;
-      const list = byTick.get(h.tickOffset) ?? [];
+    const hits = track.hits.filter((h) => h.barIndex === bar.index && h.tickOffset < length);
+    // Distinct loudness levels in this bar, loudest first; each gets its own voice (up to 4, as in Guitar Pro).
+    const levels = [...new Set(hits.map((h) => dynamicsFromVelocity(h.velocity)))].sort((a, b) => b - a);
+    const voiceLevels = levels.length ? levels.slice(0, MAX_DRUM_VOICES) : [dynamicsFromVelocity(100)];
+    const voiceFor = (level: number) =>
+      voiceLevels.reduce((best, l, i) => (Math.abs(l - level) < Math.abs(voiceLevels[best] - level) ? i : best), 0);
+    const perVoice = voiceLevels.map(() => new Map<number, DrumHit[]>());
+    for (const h of hits) {
+      const map = perVoice[voiceFor(dynamicsFromVelocity(h.velocity))];
+      const list = map.get(h.tickOffset) ?? [];
       list.push(h);
-      byTick.set(h.tickOffset, list);
+      map.set(h.tickOffset, list);
     }
-    const ticks = [...byTick.keys()].sort((a, b) => a - b);
-    addRests(voice, ticks.length ? ticks[0] : length);
-    ticks.forEach((tick, i) => {
-      const end = ticks[i + 1] ?? length;
-      const pieces = decomposeRest(end - tick);
-      // Put the hits on the first piece that starts at `tick`; any remainder is written as rests.
-      const [first, ...rest] = pieces.length ? pieces : [{ duration: 32 as const, dotted: false, triplet: false, ticks: 60 }];
-      const beat = newBeat(voice, first);
-      for (const hit of byTick.get(tick) ?? []) {
-        const note = new alphaTab.model.Note();
-        note.percussionArticulation = articulation.get(hit.midiNote) ?? 0;
-        note.dynamics = dynamicsFromVelocity(hit.velocity) as alphaTab.model.DynamicValue;
-        beat.addNote(note);
-      }
-      for (const r of rest) newBeat(voice, r);
+    perVoice.forEach((map, i) => {
+      const voice = new alphaTab.model.Voice();
+      b.addVoice(voice);
+      writeDrumVoice(voice, map, length, articulation, voiceLevels[i]);
     });
   });
 }
