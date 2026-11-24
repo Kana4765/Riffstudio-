@@ -31,7 +31,7 @@ function timeline(song: Song): string[] {
   song.tracks.forEach((t, ti) => {
     if (isDrumTrack(t)) {
       for (const h of [...t.hits].sort((a, b) => a.barIndex - b.barIndex || a.tickOffset - b.tickOffset || a.midiNote - b.midiNote)) {
-        out.push(`t${ti} drum b${h.barIndex} +${h.tickOffset} n${h.midiNote} dyn${dynLevel(h.velocity)}`);
+        out.push(`t${ti} drum b${h.barIndex} +${h.tickOffset} n${h.midiNote}`);
       }
       return;
     }
@@ -86,6 +86,22 @@ for (const [name, song] of songs) {
       if (x !== b[i] && i < 400) console.log(`   - ${x}\n   + ${b[i]}`);
     });
   }
+  // Velocities: exact (to Guitar Pro's 8 loudness levels) when a bar uses <= 4 levels (one drum voice each);
+  // bars with more levels merge the closest ones, so allow one level of difference there.
+  const velA = song.tracks.flatMap((t, ti) => (isDrumTrack(t) ? t.hits.map((h) => ({ ti, h })) : []));
+  const velB = new Map(
+    back.tracks.flatMap((t, ti) => (isDrumTrack(t) ? t.hits.map((h) => [`${ti}:${h.barIndex}:${h.tickOffset}:${h.midiNote}`, h.velocity] as const) : [])),
+  );
+  let exactBad = 0;
+  let looseBad = 0;
+  for (const { ti, h } of velA) {
+    const levelsInBar = new Set(velA.filter((x) => x.ti === ti && x.h.barIndex === h.barIndex).map((x) => dynLevel(x.h.velocity))).size;
+    const other = velB.get(`${ti}:${h.barIndex}:${h.tickOffset}:${h.midiNote}`);
+    const d = other === undefined ? 99 : Math.abs(dynLevel(other) - dynLevel(h.velocity));
+    if (levelsInBar <= 4 && d !== 0) exactBad += 1;
+    if (d > 1) looseBad += 1;
+  }
+  check(exactBad === 0 && looseBad === 0, `"${name}": drum velocities kept (${velA.length} hits; ${exactBad} off in <=4-level bars, ${looseBad} off by >1 level)`);
   check(back.title === song.title && back.tracks.map((t) => t.name).join('|') === song.tracks.map((t) => t.name).join('|'), `"${name}": title and track names kept`);
 }
 
