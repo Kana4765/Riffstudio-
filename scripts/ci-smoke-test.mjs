@@ -47,7 +47,10 @@ const server = createServer((req, res) => {
   let file = normalize(join(root, decodeURIComponent(url.pathname)));
   if (!file.startsWith(root)) return void res.writeHead(403).end();
   if (existsSync(file) && statSync(file).isDirectory()) file = join(file, 'index.html');
-  if (!existsSync(file)) return void res.writeHead(404).end('not found');
+  if (!existsSync(file)) {
+    console.log(`[smoke:${mode}]   404 ${url.pathname}`);
+    return void res.writeHead(404).end('not found');
+  }
   res.writeHead(200, { 'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream', 'Content-Security-Policy': csp });
   res.end(readFileSync(file));
 });

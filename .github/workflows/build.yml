@@ -30,6 +30,7 @@ jobs:
 
       - name: Smoke test - tablature renders under the app's CSP (headless Chromium)
         run: |
+          echo "Font files in dist:"; find dist -iname '*bravura*' -o -iname '*.woff*' -o -iname '*.otf' | head -20
           npm install --no-save playwright@1
           npx playwright install --with-deps chromium
           node scripts/ci-smoke-test.mjs nonce ci-smoke-nonce.png
