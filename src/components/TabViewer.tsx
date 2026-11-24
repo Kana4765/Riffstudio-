@@ -45,6 +45,17 @@ export function TabViewer({ song, track, cursor, isPlaying, onSelect }: TabViewe
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cursorRect, setCursorRect] = useState<Rect | null>(null);
+  const [slowRender, setSlowRender] = useState(false);
+
+  // If alphaTab never finishes (e.g. its music font is blocked), say so instead of spinning forever.
+  useEffect(() => {
+    if (!loading) {
+      setSlowRender(false);
+      return;
+    }
+    const t = window.setTimeout(() => setSlowRender(true), 12_000);
+    return () => window.clearTimeout(t);
+  }, [loading]);
 
   const tex = useMemo(() => generateAlphaTex(song, track), [song, track]);
   texRef.current = tex;
@@ -194,6 +205,11 @@ export function TabViewer({ song, track, cursor, isPlaying, onSelect }: TabViewe
           <AlertTriangle size={14} />
           Bar {tex.overflowBars.map((b) => b + 1).join(', ')} {tex.overflowBars.length > 1 ? 'are' : 'is'} too full — beats past the bar
           line are hidden and muted. Shorten or delete beats.
+        </div>
+      )}
+      {slowRender && !error && (
+        <div className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 py-1.5 text-xs text-amber-200">
+          The tablature is taking unusually long to draw. Playback and editing still work; if this persists, restart the app.
         </div>
       )}
       {error && (

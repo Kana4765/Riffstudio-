@@ -28,6 +28,19 @@ jobs:
       - name: tsc -b && vite build
         run: npm run build
 
+      - name: Smoke test - tablature renders under the app's CSP (headless Chromium)
+        run: |
+          npm install --no-save playwright@1
+          npx playwright install --with-deps chromium
+          node scripts/ci-smoke-test.mjs nonce ci-smoke-nonce.png
+          node scripts/ci-smoke-test.mjs fixed ci-smoke-fixed.png
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-test-screenshots
+          path: ci-smoke-*.png
+
   windows:
     name: Windows (.exe / .msi)
     needs: web
