@@ -10,51 +10,57 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: RIFFFORGE_SKIP_DRUM_DOWNLOAD=1 npm install
-      - name: alphaTab declarations
+      - name: Probe 2
         run: |
-          D=$(ls node_modules/@coderline/alphatab/dist/*.d.ts | head -1); echo "DTS=$D"; grep -m1 '"version"' node_modules/@coderline/alphatab/package.json
-          for c in Gp7Exporter ScoreExporter ScoreLoader Score MasterBar Automation Track Staff Tuning Bar Voice Beat Note InstrumentArticulation PercussionMapper PlaybackInformation; do
-            echo "=================== $c"
-            awk -v c="$c" '$0 ~ "^declare (abstract )?class "c"( |<|$)" {p=1} p {print} p && /^}/ {p=0}' "$D" | grep -vE '^\s*(\*|/\*\*|\*/)' | head -170
-          done
-          echo "=================== enums"
-          for e in AutomationType SlideOutType SlideInType HarmonicType BendType GraceType Duration DynamicValue; do awk -v c="$e" '$0 ~ "^declare enum "c" " {p=1} p {print} p && /^}/ {p=0}' "$D" | grep -vE '^\s*(\*|/\*\*|\*/)'; done
-          echo "=================== namespaces"; grep -nE "^declare namespace|^export \{" "$D" | head -40
-          grep -nA40 "^declare namespace exporter" "$D" | head -30
-      - name: Fetch sample Guitar Pro files from alphaTab test-data
-        env: { GH_TOKEN: '${{ github.token }}' }
-        run: |
-          gh api 'repos/CoderLine/alphaTab/git/trees/main?recursive=1' --jq '.tree[].path' | grep -E '\.(gp|gp5|gpx)$' > files.txt || true
-          wc -l files.txt; grep -iE 'guitarpro8|gp8' files.txt | head -20; echo ...; grep -E 'guitarpro7' files.txt | head -60
-          mkdir -p samples
-          for f in $(grep -iE 'guitarpro8/|guitarpro7/' files.txt | grep -iE 'drum|percussion|tuplet|tempo|time-sig|bend|slide|harmonic|tie|dead|palm|hammer|tuning|multi|notes|beat|grace|repeat|dynamic|8' | head -30); do curl -sSfL -o "samples/$(echo $f | tr '/' '_')" "https://raw.githubusercontent.com/CoderLine/alphaTab/main/$f" || true; done
-          ls -la samples
-      - name: Load samples with alphaTab (Node)
-        run: |
-          cat > probe.mjs <<'JS'
+          for f in guitarpro7/drum-tabs.gp guitarpro7/tuplets.gp guitarpro7/time-signatures.gp guitarpro8/beat-tempo-change.gp guitarpro7/repeat-close-alternate-endings.gp; do curl -sSfL -o "$(basename $f)" "https://raw.githubusercontent.com/CoderLine/alphaTab/main/packages/alphatab/test-data/$f"; done
+          cat > p2.mjs <<'JS'
           import * as at from '@coderline/alphatab';
           import fs from 'node:fs';
-          console.log('top-level exports:', Object.keys(at).sort().join(' '));
-          console.log('exporter ns:', Object.keys(at.exporter ?? {}).join(' '), '| importer ns:', Object.keys(at.importer ?? {}).join(' '));
           const settings = new at.Settings();
-          for (const f of fs.readdirSync('samples')) {
-            try {
-              const score = at.importer.ScoreLoader.loadScoreFromBytes(new Uint8Array(fs.readFileSync('samples/' + f)), settings);
-              console.log(`\n### ${f}: "${score.title}" tempo=${score.tempo} masterBars=${score.masterBars.length} tracks=${score.tracks.length}`);
-              const mb = score.masterBars[0];
-              console.log('  mb0 ts', mb.timeSignatureNumerator, '/', mb.timeSignatureDenominator, 'tempoAutomations' in mb ? 'tempoAutomations=' + mb.tempoAutomations.length : 'tempoAutomation=' + !!mb.tempoAutomation, 'start', mb.start, 'anacrusis', mb.isAnacrusis);
-              for (const t of score.tracks.slice(0, 4)) {
-                const st = t.staves[0];
-                console.log(`  track "${t.name}" program=${t.playbackInfo.program} ch=${t.playbackInfo.primaryChannel} isPercussion=${st.isPercussion} tuning=[${st.tuning}] capo=${st.capo} transpose=${st.transpositionPitch} articulations=${t.percussionArticulations.length} staves=${t.staves.length} voices=${st.bars[0]?.voices.length}`);
-                if (t.percussionArticulations.length) console.log('    art0', JSON.stringify(t.percussionArticulations[0]));
-                const beats = st.bars.slice(0, 2).flatMap((b) => b.voices[0].beats);
-                for (const b of beats.slice(0, 5)) {
-                  console.log(`    beat dur=${b.duration} dots=${b.dots} tuplet=${b.tupletNumerator}/${b.tupletDenominator} rest=${b.isRest} empty=${b.isEmpty} grace=${b.graceType} pStart=${b.playbackStart} pDur=${b.playbackDuration} notes=` +
-                    b.notes.map((n) => `{f${n.fret} s${n.string} pm${+n.isPalmMute} dead${+n.isDead} h${+n.isHammerPullOrigin} tieD${+n.isTieDestination} bend${+n.hasBend} slOut${n.slideOutType} harm${n.harmonicType} perc${n.percussionArticulation} isPerc${+n.isPercussion} dyn${n.dynamics} rv${n.realValue}}`).join(','));
-                }
-              }
-            } catch (e) { console.log(`### ${f}: ERROR ${e.message}`); }
+          const load = (f) => at.importer.ScoreLoader.loadScoreFromBytes(new Uint8Array(fs.readFileSync(f)), settings);
+          // 1. GP drum articulations
+          const drums = load('drum-tabs.gp');
+          const arts = drums.tracks[0].percussionArticulations;
+          console.log('ARTICULATIONS', arts.length);
+          for (const a of arts) console.log('ART', JSON.stringify(a));
+          console.log('MusicFontSymbol keys sample:', Object.keys(at.model.MusicFontSymbol ?? {}).filter((k) => /Notehead|Pict|Cymbal|Open|Closed|Stem/.test(k)).slice(0, 60).join(' '));
+          console.log('model exports:', Object.keys(at.model).sort().join(' '));
+          // 2. alphaTex tie syntax + multi-track
+          for (const tex of ['\\title "t" .\n\\track "A"\n\\staff {tabs}\n\\tuning E4 B3 G3 D3 A2 E2\n3.3.4 -.3.4 r.2 |\n\\track "B"\n\\staff {tabs}\n\\tuning G2 D2 A1 E1\n0.4.1',
+                             '3.3.4 3.3{t}.4 r.2', '\\track "Drums" \\instrument percussion\n36.4 38.4 42.4 49.4']) {
+            try { const sc = at.importer.ScoreLoader.loadAlphaTex(tex, settings);
+              for (const t of sc.tracks) { const b = t.staves[0].bars[0].voices[0].beats; console.log('TEX', JSON.stringify(tex.slice(0, 30)), '| track', t.name, 'perc', t.staves[0].isPercussion, 'arts', t.percussionArticulations.length, '| notes', b.map((x) => x.notes.map((n) => `f${n.fret}s${n.string}tie${+n.isTieDestination}p${n.percussionArticulation}`).join('+')).join(' ')); }
+            } catch (e) { console.log('TEX ERR', JSON.stringify(tex.slice(0, 30)), e.message.slice(0, 200)); }
           }
-          console.log('\nPercussionMapper statics:', Object.getOwnPropertyNames(at.model?.PercussionMapper ?? {}).join(' '));
+          // 3. Build a score by hand (guitar + drums), export GP7, re-import
+          const m = at.model;
+          const score = new m.Score(); score.title = 'Probe'; score.artist = 'RF';
+          for (let i = 0; i < 2; i++) { const mb = new m.MasterBar(); mb.timeSignatureNumerator = 4; mb.timeSignatureDenominator = 4; if (i === 0) mb.tempoAutomations.push(m.Automation.buildTempoAutomation(false, 0, 140, 2)); score.addMasterBar(mb); }
+          const g = new m.Track(); g.name = 'Gtr'; g.playbackInfo.program = 30; g.playbackInfo.primaryChannel = 0; g.playbackInfo.secondaryChannel = 1;
+          const gs = new m.Staff(); gs.stringTuning = new m.Tuning('Drop D', [64, 59, 55, 50, 45, 38], false); gs.showTablature = true; gs.showStandardNotation = true; g.addStaff(gs); score.addTrack(g);
+          const d = new m.Track(); d.name = 'Drums'; d.playbackInfo.primaryChannel = 9; d.playbackInfo.secondaryChannel = 9;
+          const ds = new m.Staff(); ds.isPercussion = true; ds.showTablature = false; ds.showStandardNotation = true; d.addStaff(ds); score.addTrack(d);
+          const kickArt = arts.find((a) => a.outputMidiNumber === 36) ?? arts[0];
+          const kickIdx = d.getOrRegisterPercussionArticulation(kickArt);
+          for (let i = 0; i < 2; i++) {
+            const gb = new m.Bar(); gs.addBar(gb); const gv = new m.Voice(); gb.addVoice(gv);
+            for (let k = 0; k < 4; k++) { const bt = new m.Beat(); bt.duration = 4; const n = new m.Note(); n.fret = k; n.string = 1; if (k === 1) n.isPalmMute = true; if (k === 2) n.isTieDestination = true; bt.addNote(n); gv.addBeat(bt); }
+            const db = new m.Bar(); ds.addBar(db); const dv = new m.Voice(); db.addVoice(dv);
+            for (let k = 0; k < 4; k++) { const bt = new m.Beat(); bt.duration = 4; const n = new m.Note(); n.percussionArticulation = kickIdx; bt.addNote(n); dv.addBeat(bt); }
+          }
+          score.finish(settings);
+          const bytes = new at.exporter.Gp7Exporter().export(score, settings);
+          console.log('EXPORTED bytes', bytes.length);
+          fs.writeFileSync('probe-out.gp', bytes);
+          const back = load('probe-out.gp');
+          console.log('REIMPORT', back.title, back.tempo, back.tracks.map((t) => `${t.name}:perc${t.staves[0].isPercussion}:tun[${t.staves[0].tuning}]:prog${t.playbackInfo.program}:arts${t.percussionArticulations.length}`).join(' | '));
+          for (const t of back.tracks) console.log('  ', t.name, t.staves[0].bars[0].voices[0].beats.map((b) => b.notes.map((n) => `f${n.fret}s${n.string}pm${+n.isPalmMute}tie${+n.isTieDestination}p${n.percussionArticulation}->${n.isPercussion ? t.percussionArticulations[n.percussionArticulation]?.outputMidiNumber : ''}`).join('+')).join(' '));
+          // 4. repeats / tempo / tuplets structure
+          for (const f of ['repeat-close-alternate-endings.gp', 'beat-tempo-change.gp', 'tuplets.gp', 'time-signatures.gp']) {
+            const sc = load(f); console.log('FILE', f, 'tempo', sc.tempo);
+            for (const mb of sc.masterBars) console.log('  mb', mb.index, `ts=${mb.timeSignatureNumerator}/${mb.timeSignatureDenominator}`, `rs=${mb.isRepeatStart} rc=${mb.repeatCount} alt=${mb.alternateEndings}`, 'tempos=' + mb.tempoAutomations.map((a) => `${a.value}@${a.ratioPosition}`).join(','),
+              'beats=' + sc.tracks[0].staves[0].bars[mb.index].voices[0].beats.map((b) => `${b.duration}${b.dots ? '.' : ''}${b.hasTuplet ? 't' + b.tupletNumerator + ':' + b.tupletDenominator : ''}`).join(' '));
+          }
+          console.log('DynamicValue', JSON.stringify(at.model.DynamicValue));
           JS
-          node probe.mjs 2>&1 | head -500
+          node p2.mjs 2>&1 | head -300
