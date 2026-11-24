@@ -27,6 +27,7 @@ const FLAG_LABELS: { flag: NoteFlag; label: string; key: string }[] = [
   { flag: 'bend', label: 'Bend', key: 'B' },
   { flag: 'slide', label: 'Slide', key: 'S' },
   { flag: 'harmonic', label: 'Harm', key: 'N' },
+  { flag: 'tied', label: 'Tie', key: 'L' },
 ];
 
 interface InspectorProps {
@@ -110,7 +111,7 @@ export function BeatInspector({
       </select>
       <div className="ml-auto flex shrink-0 items-center gap-1">
         <span className="hidden items-center gap-1 text-[10px] text-mist-400 lg:flex">
-          <Keyboard size={12} /> ←↑↓→ · 0-9 · +/- · . · T · R · M H B S N · Ins · Del
+          <Keyboard size={12} /> ←↑↓→ · 0-9 · +/- · . · T · R · M H B S N L · Ins · Del
         </span>
         <button
           type="button"

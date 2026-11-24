@@ -135,3 +135,32 @@ export const DURATION_LABELS: Record<Duration, string> = {
   16: '1/16',
   32: '1/32',
 };
+
+const tieCache = new WeakMap<PitchedTrack, { bars: Bar[]; map: Map<string, number> }>();
+
+/**
+ * For every note that starts a tie chain, the extra ticks it sustains through the following tied notes on the
+ * same string (across bar lines). Keyed by `${beatId}:${stringIndex}`. Only beats that fit their bar count.
+ */
+export function tieExtensions(track: PitchedTrack, bars: Bar[]): Map<string, number> {
+  const cached = tieCache.get(track);
+  if (cached && cached.bars === bars) return cached.map;
+  const ordered: { beat: TabBeat; ticks: number }[] = [];
+  for (const bar of bars) for (const lb of layoutBar(track, bar).beats) if (lb.fits) ordered.push({ beat: lb.beat, ticks: lb.ticks });
+  const map = new Map<string, number>();
+  ordered.forEach(({ beat }, i) => {
+    if (beat.isRest) return;
+    for (const note of beat.notes) {
+      if (note.tied) continue;
+      let extra = 0;
+      for (let j = i + 1; j < ordered.length; j++) {
+        const next = ordered[j].beat;
+        if (next.isRest || !next.notes.some((n) => n.stringIndex === note.stringIndex && n.tied)) break;
+        extra += ordered[j].ticks;
+      }
+      if (extra > 0) map.set(`${beat.id}:${note.stringIndex}`, extra);
+    }
+  });
+  tieCache.set(track, { bars, map });
+  return map;
+}

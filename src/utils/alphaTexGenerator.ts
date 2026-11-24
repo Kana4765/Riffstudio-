@@ -88,6 +88,8 @@ function hasFollowingNoteOnString(ordered: TabBeat[], beatIndex: number, stringI
 }
 
 function noteTex(note: TabNote, ordered: TabBeat[], beatIndex: number): string {
+  // A tied note continues the previous note on its string: alphaTex writes it as "-.<string>".
+  if (note.tied) return `-.${note.stringIndex}`;
   const fx: string[] = [];
   const legatoTarget = hasFollowingNoteOnString(ordered, beatIndex, note.stringIndex);
   if (note.palmMute) fx.push('pm');

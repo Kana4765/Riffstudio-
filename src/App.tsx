@@ -17,7 +17,7 @@ import { createDemoSong } from './data/demoSong';
 import { useCustomDrumKits } from './hooks/useCustomDrumKits';
 import { useCoarsePointer, useIsMobile } from './hooks/useMediaQuery';
 import type { CustomKitSummary } from './services/drumKitStorage';
-import { openTextFile, saveBinaryFile, saveTextFile, safeFileName } from './services/fileService';
+import { openFile, saveBinaryFile, saveTextFile, safeFileName } from './services/fileService';
 import {
   deleteRecentProject,
   duplicateRecentProject,
@@ -44,6 +44,7 @@ import {
   type TimeSigNumerator,
   type Track,
 } from './types/song';
+import { GUITAR_PRO_EXTENSIONS, describeImport, exportGuitarPro, importGuitarPro, isGuitarProFileName } from './utils/guitarPro';
 import { exportSongToMidi } from './utils/midiExport';
 import {
   addBarAfter,
@@ -414,9 +415,15 @@ export default function App() {
 
   const loadSong = useCallback(async () => {
     try {
-      const file = await openTextFile({ name: 'RiffForge Song', extensions: ['json'] });
+      const file = await openFile({ name: 'RiffForge song or Guitar Pro file', extensions: ['json', ...GUITAR_PRO_EXTENSIONS] });
       if (!file) return;
-      const loaded: Song = normalizeSong(JSON.parse(file.content));
+      if (isGuitarProFileName(file.name)) {
+        const { song: imported, report } = importGuitarPro(file.bytes, file.name);
+        openProject(normalizeSong(imported));
+        notify(`Imported “${report.title}”: ${describeImport(report)}`);
+        return;
+      }
+      const loaded: Song = normalizeSong(JSON.parse(new TextDecoder().decode(file.bytes)));
       openProject(loaded);
       notify(`Loaded ${file.name}`);
     } catch (e) {
@@ -424,6 +431,20 @@ export default function App() {
     }
   }, [openProject, notify]);
 
+
+  const exportGp = useCallback(async () => {
+    try {
+      const saved = await saveBinaryFile(
+        `${safeFileName(song.title)}.gp`,
+        exportGuitarPro(song),
+        { name: 'Guitar Pro 7/8', extensions: ['gp'] },
+        'application/octet-stream',
+      );
+      if (saved) notify(`Exported ${saved} (opens in Guitar Pro 7 and 8)`);
+    } catch (e) {
+      notify(`Guitar Pro export failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
+    }
+  }, [song, notify]);
 
   const exportMidi = useCallback(async () => {
     try {
@@ -516,6 +537,9 @@ export default function App() {
         break;
       case 'n':
         toggleFlag('harmonic');
+        break;
+      case 'l':
+        toggleFlag('tied');
         break;
       case 'Insert':
       case 'Enter':
@@ -748,6 +772,7 @@ export default function App() {
         onSave={saveSong}
         onLoad={() => void loadSong()}
         onExportMidi={() => void exportMidi()}
+        onExportGp={() => void exportGp()}
         onTitleChange={(title) => commit((s) => ({ ...s, title }), 'title')}
       />
 

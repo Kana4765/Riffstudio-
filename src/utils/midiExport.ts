@@ -1,5 +1,5 @@
 import { PPQ, isDrumTrack, type FxChainSettings, type PitchedTrack, type Song, type Track } from '../types/song';
-import { barStartTicks, beatTicks, getBarTempo, harmonicPitch, layoutBar, notePitch } from './timing';
+import { barStartTicks, beatTicks, getBarTempo, harmonicPitch, layoutBar, notePitch, tieExtensions } from './timing';
 
 interface MidiEvent {
   tick: number;
@@ -48,7 +48,8 @@ function buildTrackChunk(events: MidiEvent[]): number[] {
   return [0x4d, 0x54, 0x72, 0x6b, ...u32(body.length), ...body];
 }
 
-function gmProgram(track: PitchedTrack): number {
+/** General MIDI program for a pitched track (also used for the Guitar Pro export). */
+export function gmProgram(track: PitchedTrack): number {
   const fx: FxChainSettings = track.fxChain;
   switch (track.instrumentType) {
     case 'acoustic-guitar':
@@ -95,6 +96,7 @@ function pitchBendEvent(tick: number, channel: number, value14: number): MidiEve
 function pitchedTrackEvents(song: Song, track: PitchedTrack, channel: number): MidiEvent[] {
   const events = trackHeaderEvents(track, channel);
   const { starts } = barStartTicks(song.bars);
+  const ties = tieExtensions(track, song.bars);
   song.bars.forEach((bar, barIdx) => {
     const layout = layoutBar(track, bar);
     for (const lb of layout.beats) {
@@ -103,12 +105,13 @@ function pitchedTrackEvents(song: Song, track: PitchedTrack, channel: number): M
       const length = beatTicks(lb.beat);
       const hasBend = lb.beat.notes.some((n) => n.bend);
       for (const note of lb.beat.notes) {
-        if (note.stringIndex < 1 || note.stringIndex > track.tuning.length) continue;
+        if (note.stringIndex < 1 || note.stringIndex > track.tuning.length || note.tied) continue;
+        const held = length + (ties.get(`${lb.beat.id}:${note.stringIndex}`) ?? 0);
         const pitch = Math.round(note.harmonic ? harmonicPitch(track, note) : notePitch(track, note));
         if (pitch < 0 || pitch > 127) continue;
         const velocity = note.palmMute ? 84 : note.hammerOn ? 76 : 104;
         // Palm mutes are short and percussive; everything else rings for ~95% of the value.
-        const gate = note.palmMute ? Math.min(length, PPQ / 4) : Math.max(1, Math.round(length * 0.95));
+        const gate = note.palmMute ? Math.min(held, PPQ / 4) : Math.max(1, Math.round(held * 0.95));
         events.push({ tick: start, order: 4, data: [0x90 | channel, pitch, velocity] });
         events.push({ tick: start + gate, order: 2, data: [0x80 | channel, pitch, 0] });
       }

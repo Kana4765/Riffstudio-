@@ -9,7 +9,7 @@ import {
   type Song,
   type Track,
 } from '../types/song';
-import { barTicks, beatTicks, getBarTempo, harmonicPitch, layoutBar, notePitch } from '../utils/timing';
+import { barTicks, beatTicks, getBarTempo, harmonicPitch, layoutBar, notePitch, tieExtensions } from '../utils/timing';
 import { GuitarFxChain } from './GuitarFxChain';
 import { drumSampler, type DrumKitStatus } from './DrumSampler';
 import { DrumBus, SynthKit, calibrateFeedbackLoop, type StringInstrument, type VoiceHandle } from './Synthesizers';
@@ -375,10 +375,13 @@ export class AudioEngine {
       }
       const layout = layoutBar(track, bar);
       const fitting = layout.beats.filter((b) => b.fits);
+      const ties = tieExtensions(track, song.bars);
       fitting.forEach((lb, i) => {
         if (lb.beat.isRest) return;
         for (const note of lb.beat.notes) {
           if (note.stringIndex < 1 || note.stringIndex > track.tuning.length) continue;
+          // Tied notes don't re-pick: the first note of the chain already sustains through them.
+          if (note.tied) continue;
           const midi = note.harmonic ? harmonicPitch(track, note) : notePitch(track, note);
           let slideSemis = 0;
           if (note.slide) {
@@ -391,7 +394,7 @@ export class AudioEngine {
             tick: lb.startTick,
             trackId: track.id,
             stringKey: `${track.id}:${note.stringIndex}`,
-            durationTicks: beatTicks(lb.beat),
+            durationTicks: beatTicks(lb.beat) + (ties.get(`${lb.beat.id}:${note.stringIndex}`) ?? 0),
             midi,
             velocity: note.palmMute ? 0.78 : note.hammerOn ? 0.6 : 0.92,
             palmMute: note.palmMute,

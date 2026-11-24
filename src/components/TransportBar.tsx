@@ -53,6 +53,7 @@ interface TransportBarProps {
   onSave: () => void;
   onLoad: () => void;
   onExportMidi: () => void;
+  onExportGp: () => void;
   onTitleChange: (title: string) => void;
 }
 
@@ -250,10 +251,11 @@ export function TransportBar(props: TransportBarProps) {
                 Bar {selectedBar + 1} time signature
                 <TimeSignatureSelect label={tsLabel} onChange={props.onTimeSignature} tall />
               </label>
-              <div className="grid grid-cols-3 gap-2">
-                <MenuButton icon={<Save size={16} />} label="Save" onClick={closeThen(props.onSave)} />
-                <MenuButton icon={<FolderOpen size={16} />} label="Load" onClick={closeThen(props.onLoad)} />
-                <MenuButton icon={<FileMusic size={16} />} label=".mid" onClick={closeThen(props.onExportMidi)} />
+              <div className="grid grid-cols-2 gap-2">
+                <MenuButton icon={<Save size={16} />} label="Save .json" onClick={closeThen(props.onSave)} />
+                <MenuButton icon={<FolderOpen size={16} />} label="Open song / .gp" onClick={closeThen(props.onLoad)} />
+                <MenuButton icon={<FileMusic size={16} />} label="Export .gp" onClick={closeThen(props.onExportGp)} />
+                <MenuButton icon={<FileMusic size={16} />} label="Export .mid" onClick={closeThen(props.onExportMidi)} />
               </div>
             </div>
           </div>
@@ -309,7 +311,8 @@ export function TransportBar(props: TransportBarProps) {
         accent="#fb923c"
       />
       <IconButton icon={Save} label="Save .json" onClick={props.onSave} />
-      <IconButton icon={FolderOpen} label="Load .json" onClick={props.onLoad} />
+      <IconButton icon={FolderOpen} label="Open .json / Guitar Pro" onClick={props.onLoad} />
+      <IconButton icon={FileMusic} label="Export .gp" onClick={props.onExportGp} showLabel />
       <IconButton icon={FileMusic} label="Export .mid" onClick={props.onExportMidi} showLabel />
     </header>
   );

@@ -10,12 +10,15 @@ export function clampBpm(bpm: number): number {
   return Math.min(MAX_BPM, Math.max(MIN_BPM, Math.round(bpm)));
 }
 
-export type TimeSigNumerator = 2 | 3 | 4 | 5 | 6 | 7;
-export type TimeSigDenominator = 4 | 8;
+/** Beats per bar (1–32). The editor offers common meters; imported Guitar Pro files may use any of these. */
+export type TimeSigNumerator = number;
+/** Note value of one beat. */
+export type TimeSigDenominator = 1 | 2 | 4 | 8 | 16 | 32;
+export const DENOMINATORS: readonly TimeSigDenominator[] = [1, 2, 4, 8, 16, 32];
+export const MAX_NUMERATOR = 32;
 export type Duration = 1 | 2 | 4 | 8 | 16 | 32;
 
 export const DURATIONS: readonly Duration[] = [1, 2, 4, 8, 16, 32];
-export const NUMERATORS: readonly TimeSigNumerator[] = [2, 3, 4, 5, 6, 7];
 
 export type InstrumentType = 'electric-guitar' | 'acoustic-guitar' | 'bass' | 'synth' | 'drums';
 export type PitchedInstrumentType = Exclude<InstrumentType, 'drums'>;
@@ -45,6 +48,8 @@ export interface TabNote {
   slide: boolean;
   /** Natural harmonic. */
   harmonic: boolean;
+  /** Tied from the previous note on the same string: sustains instead of re-picking. */
+  tied?: boolean;
 }
 
 export interface TabBeat {

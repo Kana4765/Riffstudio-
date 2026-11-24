@@ -15,7 +15,7 @@ export interface PendingRhythm {
   tuplet: boolean;
 }
 
-export type NoteFlag = 'palmMute' | 'hammerOn' | 'bend' | 'slide' | 'harmonic';
+export type NoteFlag = 'palmMute' | 'hammerOn' | 'bend' | 'slide' | 'harmonic' | 'tied';
 
 export function getBeatAt(track: PitchedTrack, barIndex: number, position: number): TabBeat | undefined {
   return track.beats.find((b) => b.barIndex === barIndex && b.position === position);

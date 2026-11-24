@@ -290,13 +290,18 @@ export function HomePage({
 
           <div className="flex flex-col gap-4 rounded-2xl border border-ink-700 bg-ink-900/60 p-4 sm:p-5">
             <SectionTitle>Open project file</SectionTitle>
-            <p className="text-sm text-mist-400">Load a RiffForge <span className="font-mono text-zinc-300">.json</span> song saved from this or another device.</p>
+            <p className="text-sm text-mist-400">
+              Open a RiffForge <span className="font-mono text-zinc-300">.json</span> song, or a Guitar Pro file:{' '}
+              <span className="font-mono text-zinc-300">.gp</span> (Guitar Pro 7 &amp; 8), <span className="font-mono text-zinc-300">.gpx</span>,{' '}
+              <span className="font-mono text-zinc-300">.gp5</span>, <span className="font-mono text-zinc-300">.gp4</span>,{' '}
+              <span className="font-mono text-zinc-300">.gp3</span> or MusicXML.
+            </p>
             <button
               type="button"
               onClick={onOpenFile}
               className="flex h-12 items-center justify-center gap-2 rounded-xl border border-dashed border-ink-500 bg-ink-950 text-sm font-semibold text-zinc-100 hover:border-sky-500 hover:text-sky-200"
             >
-              <FolderOpen size={18} /> Open .json file…
+              <FolderOpen size={18} /> Open song or Guitar Pro file…
             </button>
             <p className="text-xs text-mist-400">
               Projects you work on are saved automatically on this device and appear under Recent Projects.

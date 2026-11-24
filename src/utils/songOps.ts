@@ -11,7 +11,8 @@ import {
   MAX_BPM,
   isBuiltInKit,
   MIN_BPM,
-  NUMERATORS,
+  DENOMINATORS,
+  MAX_NUMERATOR,
   type Bar,
   type DrumHit,
   type DrumMidiNote,
@@ -194,10 +195,11 @@ function bool(v: unknown): boolean {
 
 function normalizeBar(v: unknown, index: number): Bar {
   const r = isRec(v) ? v : {};
-  const numerator = (NUMERATORS as readonly number[]).includes(r.numerator as number)
-    ? (r.numerator as TimeSigNumerator)
+  const rawNum = typeof r.numerator === 'number' ? Math.round(r.numerator) : 4;
+  const numerator: TimeSigNumerator = rawNum >= 1 && rawNum <= MAX_NUMERATOR ? rawNum : 4;
+  const denominator: TimeSigDenominator = (DENOMINATORS as readonly number[]).includes(r.denominator as number)
+    ? (r.denominator as TimeSigDenominator)
     : 4;
-  const denominator: TimeSigDenominator = r.denominator === 8 ? 8 : 4;
   const bar: Bar = { index, numerator, denominator };
   if (typeof r.tempoOverride === 'number' && r.tempoOverride >= MIN_BPM && r.tempoOverride <= MAX_BPM) {
     bar.tempoOverride = r.tempoOverride;
@@ -217,6 +219,7 @@ function normalizeNote(v: unknown, strings: number): TabNote | null {
     bend: bool(v.bend),
     slide: bool(v.slide),
     harmonic: bool(v.harmonic),
+    ...(v.tied === true ? { tied: true } : {}),
   };
 }
 

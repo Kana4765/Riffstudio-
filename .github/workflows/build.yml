@@ -28,6 +28,25 @@ jobs:
       - name: tsc -b && vite build
         run: npm run build
 
+      - name: Guitar Pro import/export test (real alphaTab + real GP7/GP8 files)
+        run: |
+          npm install --no-save tsx@4
+          mkdir -p gp-samples
+          for f in guitarpro7/bends.gp guitarpro7/dead.gp guitarpro7/drum-tabs.gp guitarpro7/drum-custom-lines.gp guitarpro7/grace.gp \
+                   guitarpro7/hammer.gp guitarpro7/harmonics.gp guitarpro7/notes.gp guitarpro7/slides.gp guitarpro7/tuplets.gp \
+                   guitarpro7/time-signatures.gp guitarpro7/repeat-close-alternate-endings.gp guitarpro7/serenade.gp guitarpro7/effects.gp \
+                   guitarpro7/anacrusis.gp guitarpro7/strings.gp guitarpro8/beat-tempo-change.gp guitarpro8/bank-change.gp \
+                   guitarpro8/custom-beaming.gp guitarpro8/directions.gp guitarpro8/e.gp guitarpro8/canon-audio-track.gp; do
+            curl -sSfL -o "gp-samples/$(echo $f | tr '/' '_')" "https://raw.githubusercontent.com/CoderLine/alphaTab/main/packages/alphatab/test-data/$f" || echo "missing $f"
+          done
+          npx tsx scripts/ci-gp-test.ts
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: exported-guitar-pro-files
+          path: ci-out/*.gp
+
       - name: Smoke test - tablature renders under the app's CSP (headless Chromium)
         run: |
           echo "Font files in dist:"; find dist -iname '*bravura*' -o -iname '*.woff*' -o -iname '*.otf' | head -20

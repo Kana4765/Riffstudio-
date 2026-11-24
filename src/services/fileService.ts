@@ -13,6 +13,11 @@ export interface OpenedTextFile {
   content: string;
 }
 
+export interface OpenedFile {
+  name: string;
+  bytes: Uint8Array;
+}
+
 declare global {
   interface Window {
     __TAURI_INTERNALS__?: unknown;
@@ -40,6 +45,45 @@ function browserDownload(fileName: string, data: BlobPart, mime: string): void {
   a.click();
   a.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+function browserPickFile(filter: FileFilter): Promise<File | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = filter.extensions.map((e) => `.${e}`).join(',');
+    input.style.display = 'none';
+    input.addEventListener('change', () => {
+      resolve(input.files?.[0] ?? null);
+      input.remove();
+    });
+    input.addEventListener('cancel', () => {
+      resolve(null);
+      input.remove();
+    });
+    document.body.appendChild(input);
+    input.click();
+  });
+}
+
+function isAndroid(): boolean {
+  return typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+}
+
+/** Prompts for any file and returns its raw bytes (e.g. Guitar Pro files), or null if cancelled. */
+export async function openFile(filter: FileFilter): Promise<OpenedFile | null> {
+  if (isTauri()) {
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const { readFile } = await import('@tauri-apps/plugin-fs');
+    // Android's picker filters by MIME type and has none for .gp/.gpx, which would make them unselectable,
+    // so show every file there and let the caller check the extension.
+    const selected = await open({ multiple: false, directory: false, filters: isAndroid() ? [] : [filter] });
+    if (typeof selected !== 'string') return null;
+    return { name: baseName(selected), bytes: await readFile(selected) };
+  }
+  const file = await browserPickFile(filter);
+  if (!file) return null;
+  return { name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) };
 }
 
 function browserPickText(filter: FileFilter): Promise<OpenedTextFile | null> {
