@@ -58,7 +58,7 @@ await new Promise((r) => server.listen(4173, '127.0.0.1', r));
 console.log(`[smoke:${mode}] CSP: ${csp}`);
 
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+const page = await browser.newPage({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, acceptDownloads: true });
 const problems = [];
 page.on('console', (m) => {
   if (m.type() === 'error' || m.type() === 'warning') problems.push(`${m.type()}: ${m.text()}`);
@@ -96,6 +96,31 @@ try {
   ok = info.svgs > 0 && musicFontLoaded && ['0', '1', '3', '5', '7', '8'].every((f) => frets.has(f));
 } catch (err) {
   console.log(`[smoke:${mode}] tablature did NOT render: ${err instanceof Error ? err.message.split('\n')[0] : err}`);
+}
+// Guitar Pro round trip through the real UI: open a GP8 file from the Home page, then export it again.
+if (ok && mode === 'fixed' && existsSync('gp-samples')) {
+  const sample = ['guitarpro8_custom-beaming.gp', 'guitarpro7_serenade.gp'].map((f) => `gp-samples/${f}`).find((f) => existsSync(f));
+  if (sample) {
+    try {
+      await page.getByRole('button', { name: 'Home' }).click();
+      const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: /Open song or Guitar Pro file/ }).click()]);
+      await chooser.setFiles(sample);
+      await page.waitForFunction(() => document.body.innerText.includes('Imported'), null, { timeout: 15_000 });
+      const toast = await page.locator('[role=status]').innerText();
+      await page.waitForFunction(() => !!document.querySelector('.at-surface svg') && !document.body.innerText.includes('Rendering'), null, { timeout: 30_000 });
+      const frets = await page.evaluate(() => [...document.querySelectorAll('.at-surface svg text')].filter((t) => /^\d{1,2}$/.test((t.textContent ?? '').trim())).length);
+      console.log(`[smoke:${mode}] GP import via UI: "${toast}" -> ${frets} fret numbers drawn`);
+      await page.getByRole('button', { name: 'More' }).click();
+      const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Export .gp' }).click()]);
+      const path = await download.path();
+      const head = path ? readFileSync(path).subarray(0, 2).toString('latin1') : '';
+      console.log(`[smoke:${mode}] GP export via UI: ${download.suggestedFilename()} (${path ? readFileSync(path).length : 0} bytes, zip=${head === 'PK'})`);
+      ok = frets > 0 && head === 'PK' && download.suggestedFilename().endsWith('.gp');
+    } catch (err) {
+      console.log(`[smoke:${mode}] Guitar Pro UI flow failed: ${err instanceof Error ? err.message.split('\n')[0] : err}`);
+      ok = false;
+    }
+  }
 }
 await page.screenshot({ path: shot, fullPage: false });
 for (const p of problems.slice(0, 15)) console.log(`[smoke:${mode}]   ${p}`);
