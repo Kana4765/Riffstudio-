@@ -74,10 +74,26 @@ try {
     null,
     { timeout: 30_000 },
   );
-  const svgs = await page.evaluate(() => document.querySelectorAll('.at-surface svg').length);
-  const glyphs = await page.evaluate(() => document.querySelectorAll('.at-surface svg text, .at-surface svg path').length);
-  console.log(`[smoke:${mode}] rendered: ${svgs} SVG partial(s), ${glyphs} glyph elements`);
-  ok = svgs > 0 && glyphs > 50;
+  // Give lazily rendered partials a moment, then inspect what was drawn.
+  await page.waitForTimeout(1500);
+  const info = await page.evaluate(() => {
+    const texts = [...document.querySelectorAll('.at-surface svg text')].map((t) => (t.textContent ?? '').trim()).filter(Boolean);
+    const fonts = [...document.fonts].map((f) => `${f.family}:${f.status}`);
+    return {
+      svgs: document.querySelectorAll('.at-surface svg').length,
+      texts,
+      fonts,
+      surfaceHeight: document.querySelector('.at-surface')?.getBoundingClientRect().height ?? 0,
+    };
+  });
+  const frets = new Set(info.texts.filter((t) => /^\d{1,2}$/.test(t)));
+  const musicFontLoaded = info.fonts.some((f) => /alphatab|bravura/i.test(f) && f.endsWith(':loaded'));
+  console.log(`[smoke:${mode}] rendered: ${info.svgs} SVG partial(s), ${info.texts.length} text nodes, surface ${Math.round(info.surfaceHeight)}px tall`);
+  console.log(`[smoke:${mode}] fonts: ${info.fonts.join(', ')}`);
+  console.log(`[smoke:${mode}] fret numbers drawn: ${[...frets].sort((a, b) => Number(a) - Number(b)).join(' ')}`);
+  console.log(`[smoke:${mode}] title/text sample: ${info.texts.filter((t) => !/^\d+$/.test(t)).slice(0, 8).join(' | ')}`);
+  // Rhythm Guitar L riff: open D chugs (0) and power chords on frets 1, 3, 5, 7, 8.
+  ok = info.svgs > 0 && musicFontLoaded && ['0', '1', '3', '5', '7', '8'].every((f) => frets.has(f));
 } catch (err) {
   console.log(`[smoke:${mode}] tablature did NOT render: ${err instanceof Error ? err.message.split('\n')[0] : err}`);
 }
