@@ -79,6 +79,11 @@ export function TabViewer({ song, track, cursor, isPlaying, onSelect }: TabViewe
     settings.core.engine = 'svg';
     settings.core.logLevel = alphaTab.LogLevel.Warning;
     settings.core.includeNoteBounds = true;
+    // The alphaTab Vite plugin copies Bravura to <app root>/font/, but alphaTab guesses the font folder from its
+    // own script (assets/alphaTab.core-*.js) and looks in assets/font/, which 404s. Without its music font
+    // alphaTab never starts rendering, so point it at the real folder (works for http://tauri.localhost on
+    // Android, WebView2 on Windows, and the web build).
+    settings.core.fontDirectory = new URL('./font/', document.baseURI).href;
     settings.display.staveProfile = alphaTab.StaveProfile.Tab;
     settings.display.layoutMode = alphaTab.LayoutMode.Page;
     settings.display.scale = window.innerWidth < 640 ? 0.85 : 1;
